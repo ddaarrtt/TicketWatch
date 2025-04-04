@@ -119,6 +119,8 @@ end
 
 ## 🚀 Trouble Shooting
 ### wrk 결과로 timeout이 등장했는데, Grafana에서는 확인할 수 없는 이슈
+기존 Grafana Promql : `sum by (status) (rate(http_server_requests_seconds_count[1m]))`
+
 ![image (14)](https://github.com/user-attachments/assets/2fb39892-b518-4c99-8907-ab6bba165ccb)
 
 ### 1. 자바 코드 수정 controller에 return 할 때 timeout 504 status 를 예외처리할 수 있도록 변경
