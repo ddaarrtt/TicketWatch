@@ -55,7 +55,7 @@
 
 <br>
 
-### **👨‍💻 기술 스택**
+## **👨‍💻 기술 스택**
 
 | 역할 | 종류 |
 | --- | --- |
@@ -70,10 +70,10 @@
 
 <br>
 
-### 🎯 시나리오 흐름
+## 🎯 시나리오 흐름
 
 
-#### ✅ Step 1. 경기 오픈 10분 전
+### ✅ Step 1. 경기 오픈 10분 전
 
 - 사용자들이 앱에 접속 → `GET /seats` 호출
 - **조회(Read)** 중심의 트래픽 발생  
@@ -84,7 +84,7 @@ wrk -t4 -c50 -d30s http://<ip>:8080/seats
 ```
 
 
-#### 🚀 Step 2. 경기 예매 시작! (D-day)
+### 🚀 Step 2. 경기 예매 시작! (D-day)
 
 - 수천 건의 `POST /book` 요청 **동시 집중**
 - 동일 좌석에 다수 사용자 예약 → **DB 충돌** 발생 가능
@@ -96,7 +96,7 @@ wrk -t10 -c500 -d30s -s post_book.lua http://<ip>:8080/book
 
 > ⚠️ 좌석 중복 예약이나 성능 저하를 테스트하기 위한 시나리오입니다.
 
-##### 📄 post_book.lua (Lua 스크립트 예시)
+#### 📄 post_book.lua (Lua 스크립트 예시)
 
 ```lua
 -- POST 메서드 설정
@@ -117,7 +117,70 @@ request = function()
 end
 ```
 
+## 🚀 Trouble Shooting
+### wrk 결과로 timeout이 등장했는데, Grafana에서는 확인할 수 없는 이슈
+![image (14)](https://github.com/user-attachments/assets/2fb39892-b518-4c99-8907-ab6bba165ccb)
 
+### 1. 자바 코드 수정 controller에 return 할 때 timeout 504 status 를 예외처리할 수 있도록 변경
+
+```java
+    @GetMapping("/seats")
+    public ResponseEntity<?> getSeats() {
+        ExecutorService controllerExecutor = Executors.newSingleThreadExecutor();
+        try {
+            Future<List<Seat>> future = controllerExecutor.submit(() -> seatService.getAllSeatsParallel());
+            List<Seat> seats = future.get(2, TimeUnit.SECONDS); // 2초 내 미응답 시 timeout 처리
+            return ResponseEntity.ok(seats);
+        } catch (TimeoutException e) {
+            log.warn("/seats 요청에서 TimeoutException 발생: 처리 시간 초과");
+            return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body("조회 시간이 초과되었습니다.");
+        } catch (Exception e) {
+            log.error("/seats 요청 처리 중 예외 발생", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("오류가 발생했습니다.");
+        } finally {
+            controllerExecutor.shutdown();
+        }
+    }
+```
+
+---
+
+### 2. java 코드 수정 후에도 그라파나에서 볼 수 없어 로그 확인
+
+```bash
+nohup java -jar ticketing-api-0.0.1-SNAPSHOT.jar > logs/app.log 2>&1 &
+```
+
+jar 파일 실행한 결과를 log 파일에 저장하며 nohup 사용해 백그라운드로 실행할 수 있도록 하였다.
+
+![image (15)](https://github.com/user-attachments/assets/ac4fac3d-e553-4b98-93f7-6d7efee56412)
+
+- 로그에는 TimeException이 잘 실행되었다는 것을 확인 가능했다.
+
+### 3. Prometheus가 `504` 상태코드 응답을 진짜 수집하고 있는지 확인
+
+- Prometheus 자체 UI에 들어가서 메트릭을 요청수와 상태 코드 지표를 검색했다.
+    
+    ```
+    http://<IP>:9090
+    ```
+    
+    ### 검색창에 메트릭 입력
+    
+    Prometheus UI 상단에 이렇게 입력하고 엔터:
+    
+    ```
+    http_server_requests_seconds_count
+    ```
+    
+- 검색해보니 504가 잘 잡혔다.
+
+![image (16)](https://github.com/user-attachments/assets/09cd845c-d00e-4200-9c34-e0d0a57ba074)
+
+
+- 해당 promql을 Grafana에서도 적용했더니 504 에러까지 시각화할 수 있었다.
+    
+    ![image (17)](https://github.com/user-attachments/assets/185e51d7-e8b0-480e-964d-a78fc51ce611)
 
 
 
