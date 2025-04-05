@@ -13,10 +13,14 @@
 <br>
 
 ## 📍 Outline
-- [1️⃣ Contributors](#1%EF%B8%8F⃣-contributors)
-- [2️⃣ Contents](#2%EF%B8%8F⃣-contents)
-- [3️⃣ Performance Optimization](#3%EF%B8%8F⃣-performance-optimization)
-- [4️⃣ Trouble Shooting](#4%EF%B8%8F⃣-trouble-shooting)
+1️⃣ [프로젝트 개요](#-개요)  
+2️⃣ [목표](#-목표)  
+3️⃣ [기술 스택](#-기술-스택)  
+4️⃣ [아키텍처](#-아키텍처)  
+5️⃣ [테스트 시나리오](#-테스트-시나리오)  
+6️⃣ [성능 모니터링 및 개선 방향](#-성능-모니터링-및-개선-방향)  
+7️⃣ [종합 결론 및 개선 요약](#-종합-결론-및-개선-요약)  
+8️⃣ [Trouble Shooting](#-trouble-shooting)  
 
 <br>
 <br>
@@ -174,12 +178,13 @@ http_server_requests_seconds_count
 <br>
 
 ## 🚀 Trouble Shooting
-### wrk 결과로 timeout이 등장했는데, Grafana에서는 확인할 수 없는 이슈
+### ❗ 문제 상황: wrk에서 timeout 발생, Grafana에서는 확인되지 않음
 기존 Grafana Promql : `sum by (status) (rate(http_server_requests_seconds_count[1m]))`
 
-![image (14)](https://github.com/user-attachments/assets/2fb39892-b518-4c99-8907-ab6bba165ccb)
+![image](https://github.com/user-attachments/assets/f64c2fb6-ad8e-47c5-8440-59abca393099)
 
-### 1. 자바 코드 수정 controller에 return 할 때 timeout 504 status 를 예외처리할 수 있도록 변경
+
+### 1️⃣ 자바 코드 수정: 504 응답을 명시적으로 반환하도록 처리
 
 ```java
     @GetMapping("/seats")
@@ -203,21 +208,21 @@ http_server_requests_seconds_count
 
 ---
 
-### 2. java 코드 수정 후에도 그라파나에서 볼 수 없어 로그 확인
+### 2️⃣ 로그 확인: 예외 처리 여부 확인
 
 ```bash
 nohup java -jar ticketing-api-0.0.1-SNAPSHOT.jar > logs/app.log 2>&1 &
 ```
 
-jar 파일 실행한 결과를 log 파일에 저장하며 nohup 사용해 백그라운드로 실행할 수 있도록 하였다.
+- Java 애플리케이션을 nohup 명령어로 백그라운드에서 실행하며 로그를 저장했습니다.
 
 ![image (15)](https://github.com/user-attachments/assets/ac4fac3d-e553-4b98-93f7-6d7efee56412)
 
-- 로그에는 TimeException이 잘 실행되었다는 것을 확인 가능했다.
+- 로그에서 TimeoutException 발생 시 로그가 정상적으로 기록되었음을 확인했습니다.
 
-### 3. Prometheus가 `504` 상태코드 응답을 진짜 수집하고 있는지 확인
+### 3. Prometheus 지표 수집 확인 (`504` 상태코드 응답)
 
-- Prometheus 자체 UI에 들어가서 메트릭을 요청수와 상태 코드 지표를 검색했다.
+✅ Prometheus에서 상태코드 지표 직접 조회
     
     ```
     http://<IP>:9090
@@ -225,18 +230,16 @@ jar 파일 실행한 결과를 log 파일에 저장하며 nohup 사용해 백그
     
     ### 검색창에 메트릭 입력
     
-    Prometheus UI 상단에 이렇게 입력하고 엔터:
-    
     ```
     http_server_requests_seconds_count
     ```
     
-- 검색해보니 504가 잘 잡혔다.
+- 여기서 504 상태 코드 응답도 정상적으로 수집되고 있음을 확인했습니다.
 
 ![image (16)](https://github.com/user-attachments/assets/09cd845c-d00e-4200-9c34-e0d0a57ba074)
 
 
-- 해당 promql을 Grafana에서도 적용했더니 504 에러까지 시각화할 수 있었다.
+- PromQL 쿼리를 수정 후 적용한 결과, Grafana에서도 504 응답을 포함한 모든 상태 코드가 시각화 되었습니다.
     
     ![image (17)](https://github.com/user-attachments/assets/185e51d7-e8b0-480e-964d-a78fc51ce611)
 
