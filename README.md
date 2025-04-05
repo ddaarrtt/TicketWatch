@@ -2,11 +2,12 @@
 
 
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=3F51B5&height=300&section=header&text=🎯TicketWatch🎯&fontSize=70&fontColor=FFFFFF&animation=fadeIn&width=1200" width="1200" />
+<img src="https://capsule-render.vercel.app/api?type=waving&color=3F51B5&height=300&section=header&text=⚾TicketWatch⚾&fontSize=70&fontColor=FFFFFF&animation=fadeIn&width=1200" width="1200" />
 
-# 🎫 TicketWatch
-실시간 티켓 예매 시스템의 상태를 모니터링 환경을 구축하는 프로젝트입니다.
-
+## 🚩개요
+**야구 티켓팅 시스템의 모니터링 환경을 구축**하는 프로젝트입니다. <br>
+부하 테스트를 통해 시스템의 한계를 파악하고, **장애 상황에 대비할 수 있는 안정적인 운영 환경**을 마련합니다. <br>
+이를 기반으로 개선 방향을 분석합니다.
 
 
 <br>
@@ -34,24 +35,18 @@
 
 <br>
 
-## 🚩개요
-본 프로젝트는 **야구 티켓팅 시스템의 안정성을 확보하기 위한 모니터링 환경을 구축** 하는 것을 목표로 합니다.
-부하 테스트를 통해 시스템의 한계를 파악하고, **장애 상황에 대비할 수 있는 안정적인 운영 환경**을 마련합니다.
-
-<br>
-
 ## 🥅 목표
 
 1. **Grafana & Prometheus 기반의 모니터링 서버 구축**
-    → 실시간 메트릭 수집 및 시각화를 통해 시스템 상태를 직관적으로 파악할 수 있도록 구성합니다.
+    - 실시간 메트릭 수집 및 시각화를 통해 시스템 상태를 직관적으로 파악할 수 있도록 구성합니다.
     
 2. **Exporter 연동을 통한 애플리케이션 자원 모니터링**
-    → 각 서버 및 애플리케이션에 Exporter를 설치하여 CPU, 메모리, 트래픽 등의 리소스 상태를 실시간으로 수집합니다.
+    - 각 서버 및 애플리케이션에 Exporter를 설치하여 CPU, 메모리, 트래픽 등의 리소스 상태를 실시간으로 수집합니다.
     
 3. **실전 시나리오 기반의 부하 테스트 수행**
-    → 실제 티켓팅 상황을 반영한 HTTP 및 DB 부하 테스트를 설계 및 실행하여 시스템 내구성을 점검합니다.
-    - 자리 조회 (GET /seats)
-    - 자리 예약 (POST /book)
+    - 실제 티켓팅 상황을 반영한 HTTP 및 DB 부하 테스트를 설계 및 실행하여 시스템 내구성을 점검합니다.
+        - 자리 조회 (GET /seats)
+        - 자리 예약 (POST /book)
 
 <br>
 
@@ -70,52 +65,113 @@
 
 <br>
 
-## 🎯 시나리오 흐름
+## 🧪 테스트 시나리오
 
+### ✅ 테스트 개요
+- HTTP 부하 생성 도구인 `wrk`를 사용하여 요청 시뮬레이션 수행
 
-### ✅ Step 1. 경기 오픈 10분 전
-
-- 사용자들이 앱에 접속 → `GET /seats` 호출
-- **조회(Read)** 중심의 트래픽 발생  
-- **점진적으로 부하 증가**
-
-```bash
-wrk -t4 -c50 -d30s http://<ip>:8080/seats
-```
-
-
-### 🚀 Step 2. 경기 예매 시작! (D-day)
-
-- 수천 건의 `POST /book` 요청 **동시 집중**
-- 동일 좌석에 다수 사용자 예약 → **DB 충돌** 발생 가능
-- DB에는 `INSERT`, `UPDATE`, `SELECT` 트랜잭션이 **복합적으로 작용**
+### 📍 Step 1. 경기 좌석 조회 (Read 트래픽)
+- 다수 사용자가 자리를 조회하는 상황을 시뮬레이션
 
 ```bash
-wrk -t10 -c500 -d30s -s post_book.lua http://<ip>:8080/book
+wrk -t4 -c50 -d30s http://<ip>/seats
 ```
 
-> ⚠️ 좌석 중복 예약이나 성능 저하를 테스트하기 위한 시나리오입니다.
+### 📍 Step 2. 좌석 예매 (Write 트래픽)
+- 동시에 여러 사용자가 같은 좌석을 예매 시도
+- DB에 `INSERT`, `UPDATE`, `SELECT` 트랜잭션이 혼합되어 발생
 
-#### 📄 post_book.lua (Lua 스크립트 예시)
+```bash
+wrk -t10 -c500 -d30s -s post_book.lua http://<ip>/book
+```
+
+#### 📄 post_book.lua 내용
 
 ```lua
--- POST 메서드 설정
 wrk.method = "POST"
 wrk.headers["Content-Type"] = "application/json"
 
--- 요청 본문 생성 함수
 request = function()
-  -- 랜덤한 seatId, userId 생성
   local seatId = math.random(100, 120)
   local userId = "user" .. math.random(1, 5000)
-
-  -- JSON 형식 바디 구성
   local body = string.format('{"seatId":%d,"userId":"%s"}', seatId, userId)
-
-  -- 최종 요청 반환
-  return wrk.format(nil, "/book", nil, body)
+  return wrk.format("POST", "/book", nil, body)
 end
 ```
+
+<br>
+
+## 📊 성능 모니터링 및 개선 방향
+
+### 🖥️ 1. CPU 사용률
+```bash
+system_cpu_usage{application="$application", instance="$instance"}
+```
+![image](https://github.com/user-attachments/assets/ed8b3384-06c8-4a6c-ab86-1bb27a822e20)
+
+- 부하 시작과 함께 CPU 사용률이 100%까지 급등 후 서서히 하락  
+- **서버의 부하 감당 한계를 명확히 확인**
+
+**개선 방향:** 병렬 처리, 캐싱, 로드밸런싱 도입
+
+
+
+### 📝 2. 로그 발생량
+```bash
+increase(logback_events_total{application="$application", instance="$instance"}[1m])
+```
+![image](https://github.com/user-attachments/assets/8fae21f2-5fc3-455f-a0cf-96e5cad75f19)
+
+- 로그는 `1 ops/m` 수준으로 일정하게 발생  
+- 예외 발생 시 로그가 정상적으로 기록되어 **에러 발생 시점을 확인할 수 있음**
+
+**개선 방향:** 에러 발생 시간 기반 상세 분석, 로그 레벨 및 내용 점검
+
+
+
+### 💾 3. MySQL 네트워크 트래픽
+```bash
+rate(mysql_global_status_bytes_received{instance="$host"}[$interval]) or irate(mysql_global_status_bytes_received{instance="$host"}[5m])
+```
+![image](https://github.com/user-attachments/assets/b579fc0d-20cb-4115-a617-5c66dd385b50)
+
+
+- 테스트 중 DB 수신 트래픽 약 `700kB/s` 발생  
+- 이는 사용자 요청이 **DB까지 전달되어 처리되고 있음을 의미**
+
+**개선 방향:** 쿼리 최적화 및 인덱스 적용 검토, 연결 풀 관리 및 DB 세션 튜닝
+
+
+
+### 🌐 4. HTTP 응답 상태 분석
+```bash
+http_server_requests_seconds_count
+```
+![image](https://github.com/user-attachments/assets/c11e1d14-6051-4189-87a9-249531b16735)
+
+- 200 OK가 대부분이지만, **504 Gateway Timeout** 및 **409 Conflict** 오류 다수 발생
+
+**개선 방향:** 서버 타임아웃 설정 재조정, 중복 요청 방지 로직 도입, DB 락 전략 적용 (비관적/낙관적 락), 요청 큐 혹은 예약 로직 보완
+
+
+
+<br>
+
+## 📌 종합 결론 및 개선 요약
+
+| 항목 | 문제 현상 | 원인 분석 | 개선 방안 |
+|------|------------|------------|------------|
+| **CPU** | 부하 시 100% 급등 | 병렬 처리 부족 | 멀티스레딩, 캐싱, 로드밸런싱 도입 |
+| **로그** | 예외 발생 시 생성 | 정상 로깅 동작 | 에러 로그 분석, 레벨 조정 |
+| **DB** | 트래픽 증가 | 요청 정상 처리 | 쿼리 최적화, 인덱스 검토 |
+| **HTTP 응답** | 504, 409 오류 다수 | 동시 요청 충돌, 타임아웃 | 락 처리 전략, UX 보완, 서버 설정 튜닝 |
+
+---
+
+이번 테스트를 통해 실제 트래픽 상황에서 발생할 수 있는 병목 지점을 사전에 파악할 수 있었으며, 향후 성능 향상을 위한 명확한 개선 방향을 도출할 수 있었습니다.  
+
+
+<br>
 
 ## 🚀 Trouble Shooting
 ### wrk 결과로 timeout이 등장했는데, Grafana에서는 확인할 수 없는 이슈
